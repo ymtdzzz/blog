@@ -19,6 +19,8 @@ import { serve } from "https://deno.land/std@v0.42.0/http/server.ts";
 
 ## tsconfig.ts の編集で解決
 
+<!--more-->
+
 [【deno】「An import path cannot end with a '. ts'extension.」のエラーを回避する方法](https://qiita.com/uki00a/items/817442b00dc8f3b5696d)
 
 上記の記事で大体問題無いんですが、ディレクトリ指定が Linux のものになっていたりするので Mac 用に補足しつつまとめます。
