@@ -38,7 +38,7 @@ image_diff.save("image_diff.png");
 
 ![diff_sample](/images/20200526/sample.png)
 
-もちろん、差分違いの画像を読み込ませても使えます。
+もちろん、サイズ違いの画像を読み込ませても使えます。
 
 ## TODO
 
