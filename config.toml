@@ -98,3 +98,8 @@ googleAnalytics = "UA-138253285-2"
   name  = "date"
   weight = 10
   pattern = "2017"
+
+[markup]
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true

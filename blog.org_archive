@@ -1,0 +1,22 @@
+#    -*- mode: org -*-
+
+
+Archived entries from file /Users/zeroclock/development/src/github.com/zeroclock/blog/blog.org
+
+
+* read-process-output-max の調整
+  :PROPERTIES:
+  :ARCHIVE_TIME: 2020-07-11 Sat 11:23
+  :ARCHIVE_FILE: ~/development/src/github.com/zeroclock/blog/blog.org
+  :ARCHIVE_OLPATH: Blog entries/EmacsのLSP-modeの動作を軽くする/いざチューニング
+  :ARCHIVE_CATEGORY: blog
+  :END:
+Emacsが他プロセスからデータを読み取るサイズ設定である =read-process-output-max= を調製します。この値はデフォルトだと4KBとかなり少ないため、増やしてあげる必要があります。
+
+ドキュメントの推奨範囲は800KB - 3MBあたりらしいです。ドキュメントの例だと1MBになっていたので1MBに設定しておきました。
+
+#+caption: read-process-ourput-maxの設定例
+#+begin_src elisp
+(setq read-process-output-max (* 1024 1024)) ;; 1mb
+#+end_src
+

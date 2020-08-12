@@ -1,0 +1,349 @@
+#+HUGO_BASE_DIR: ./
+#+HUGO_SECTION: posts
+#+author: zeroclock
+
+* Blog entries
+  :PROPERTIES:
+  :VISIBILITY: children
+  :END:
+** DONE Goのhot reloadにgo-taskを使ってみる                  :go:task:docker:
+   :PROPERTIES:
+   :EXPORT_FILE_NAME: using-ga-task-to-host-reload
+   :EXPORT_HUGO_SECTION: /posts/2020/07
+   :EXPORT_DATE: 2020-07-08
+   :EXPORT_HUGO_CUSTOM_FRONT_MATTER+: :toc true
+   :END:
+*** Goでhot reloading
+    作っているアプリのサーバサイドをGOで書いているので、[[https://github.com/oxequa/realize][Realize]]でhot reloadを実現しようと思ったのですが、 ~GO111MODULE=off~ にしないとgo getできなかったり、いざdocker-composeで ~realize start --run~ しようとすると下記のようなエラーが出たりと色々あれだったので、他に使えそうなパッケージが無いか探してみました。
+
+    #+CAPTION: docker-composeでrealize startした際のエラー
+    #+BEGIN_SRC
+...
+[01:09:01][SRC] : Running..
+panic: runtime error: invalid memory address or nil pointer dereference
+[signal SIGSEGV: segmentation violation code=0x1 addr=0x0 pc=0x4cf2fb]
+
+goroutine 8768 [running]:
+os.(*Process).signal(0x0, 0xad7a20, 0xe34878, 0x0, 0x0)
+	/usr/local/go/src/os/exec_unix.go:56 +0x3b
+os.(*Process).Signal(...)
+	/usr/local/go/src/os/exec.go:131
+github.com/oxequa/realize/realize.(*Project).run.func1(0xc000175698)
+	/go/src/github.com/oxequa/realize/realize/projects.go:581 +0x5c
+github.com/oxequa/realize/realize.(*Project).run(0xc0001fa000, 0xc000133ab8, 0x7, 0xc000342300, 0xc000110540, 0xad2c20, 0xc00011c8d0)
+	/go/src/github.com/oxequa/realize/realize/projects.go:646 +0xc2d
+github.com/oxequa/realize/realize.(*Project).Reload.func3(0xc0001fa000, 0xc000342300, 0xc000110540)
+	/go/src/github.com/oxequa/realize/realize/projects.go:262 +0x147
+created by github.com/oxequa/realize/realize.(*Project).Reload
+	/go/src/github.com/oxequa/realize/realize/projects.go:260 +0x297
+    #+END_SRC
+
+    調べたところ、[[https://github.com/go-task/task][go-task]] が中々シンプルで良さそうだったので試してみました。
+
+*** go-taskの使い方
+    基本的な使い方は下記の通り。
+
+**** go-taskのインストール
+     [[https://taskfile.dev/#/installation][ドキュメント]] にあるように、MacとLinux(Linuxbrew導入済)は =brew= で、Windowsの場合は =scoop= とかでサクッとインストールできるみたいです。
+
+     ただ、私の場合はdocker上のdebianでインストールしたかったので +dockerでlinuxbrew入れるの地味にめんどうなので+ バイナリを =dpkg= でインストールしました。
+
+     #+caption: Debianにおいて、バイナリ(.deb)をdpkgでインストールするコマンド
+     #+BEGIN_SRC bash
+wget https://github.com/go-task/task/releases/download/v2.8.1/task_linux_amd64.deb
+dpkg -i task_linux_amd64.deb
+rm task_linux_amd64.deb
+     #+END_SRC
+
+**** Taskfile.ymlの作成
+     go-taskでは諸々の設定をTaskfile.ymlに記述しますので、プロジェクトルートにTaskfile.ymlを作成します。 =task init= でサクッと作ってくれます。
+
+     #+BEGIN_SRC bash
+cd /path/to/project/root
+task init
+     #+END_SRC
+
+     ソースをウォッチして特定のコマンド（go runとか）を実行させたい場合、こんな感じに書けます
+
+     #+BEGIN_SRC yaml
+version: '2'
+
+tasks:
+  run:
+    cmds:
+      - go run main.go
+    sources:
+      - ./**/*
+     #+END_SRC
+
+**** 実行
+     あとはTaskfile.ymlがあるディレクトリで実行するだけです。
+
+     #+BEGIN_SRC bash
+# runはTaskfile.ymlで指定したタスク名
+task run
+     #+END_SRC
+*** 自分の使い方
+    プレイベートで開発しているアプリが、Goで書いたローカルサーバでReactを配信する　といった構成になってます。Goのサーバはリソース配信用とAPI兼用になっており、開発中はDocker container上で動かします。シンプルな構成なのでついでに記載しておきます。
+
+    フォルダ構成（抜粋）は下記の通り。
+
+    #+BEGIN_SRC plantuml :file overview.png :cache yes :cmdline -config "$HOME/.emacs.d/styles.uml" :async
+@startsalt
+{
+{T
++src
+++web
++++src
++++public
++++node_modules
++++build
++++package.json
+++main.go
+++handler
++++router.go
++++middleware.go
+++config
+++startup.sh
+++Taskfile.yml
+++Dockerfile
+++docker-compose.yml
+}
+}
+@endsalt
+    #+END_SRC
+
+    #+caption: プロジェクトのフォルダ構成（一部抜粋）
+    #+RESULTS[47167a60cfd3c4776dd5c164046eb37355045db1]:
+    [[file:overview.png]]
+
+**** Dockerfile
+     npmも入れています。
+
+     #+BEGIN_SRC Dockerfile
+FROM golang:1.14.4
+
+WORKDIR /go/src
+
+ENV GO111MODULE=on
+
+pCOPY . /go/src
+
+RUN apt-get update \
+    && apt-get install -y git python jq curl \
+    && curl -sL https://deb.nodesource.com/setup_14.x | bash - \
+    && apt-get update && apt-get install -y nodejs \
+    && npm install yarn -g \
+    && wget https://github.com/go-task/task/releases/download/v2.8.1/task_linux_amd64.deb \
+    && dpkg -i task_linux_amd64.deb \
+    && rm task_linux_amd64.deb
+
+EXPOSE 8080
+
+CMD ["task", "run"]
+     #+END_SRC
+
+**** Taskfile
+     #+BEGIN_SRC yaml
+version: '2'
+
+tasks:
+  run:
+    cmds:
+      - cmd: kill -TERM `cat pidfile`
+        ignore_error: true
+      - go run main.go --pid-file=pidfile
+    sources:
+      - ./**/*
+     #+END_SRC
+
+     =go run main.go= だけだとフォルダ変更を検知する度に前に走っていたプロセスを落とさずにまた別プロセスとして起動してしまうので、pidを適当にどこかに吐き出しておいて、起動時は前のプロセスをkillしてから実行するようにしています（[[https://qiita.com/croquette0212/items/dab91c1075c1f3ac7b8d][go-taskでサーバーのライブリロードを実現する]] を参考にさせていただきました）。
+
+     これでファイル変更を検知してホットリロードしてくれます。
+
+**** 所感
+     環境構築というプロジェクトの本質に関わらない部分については、なるべくエネルギーを割きたくないのですが、go-taskのおかげで自分が作りたいものに集中できています。
+
+     実行済タスクのkillの仕方は若干ゴリっぽい側面があるので、もうちょいスマートにいけないか考え中です。ただ、Taskfile作ってコマンド叩くだけでいいというシンプルなワークフローは気に入ったので、しばらく使ってみたいと思います。
+** DONE 【Typescript】axiosのレスポンスはきちんと型チェックしよう :typescript:axios:
+   :PROPERTIES:
+   :EXPORT_FILE_NAME: type-checking-the-response-via-axios
+   :EXPORT_HUGO_SECTION: /posts/2020/08
+   :EXPORT_DATE: 2020-08-12
+   :EXPORT_HUGO_CUSTOM_FRONT_MATTER: :toc true
+   :END:
+*** Axiosでエラー
+    Axiosで外部APIを叩いてデータを取得したいと思い、下記のコードを書いたとします。
+
+    #+caption: AxiosでAPIを叩いて情報を取得するコード例
+    #+BEGIN_SRC typescript
+import axios, { AxiosPromise } from "axios";
+
+interface CatApiResponse {
+  name: string;
+  age: number;
+  parents: string[];
+}
+
+const client = axios.create({
+  baseURL: "https://example.com/api/v2/",
+  headers: {
+    "Content-Type": "application/json"
+  }
+});
+
+const fetchAllCat = (): AxiosPromise<CatApiResponse> => client.get("cat");
+
+const hoge = () => {
+  const data = fetchAllCat();
+  data.then((data) => {
+    data.data.parents.map((parent) => {
+      console.log(parent);
+      return "hoge";
+    });
+  });
+};
+    #+END_SRC
+
+    IDEで型推定を確認すると、確かに ~CatApiResponse~ になっている。
+
+    #+DOWNLOADED: clipboard @ 2020-08-12 17:55:51
+    #+CAPTION: レスポンスデータの型推定
+    [[file:blog.org_imgs/20200812_175551.png]]
+
+    けど、実際はnullかもしれないし、 ~CatApiResponse~ のinterfaceに則したデータ構造じゃないかもしれない。で、実際に変なデータを返すAPIを用意して実行すると、案の定 ~data.data.parents.map()~ のところでコケる。でも、IDEにも怒られないし、コンパイル時にもツッコまれない。
+
+*** カスタム型ガードでちゃんとチェックする
+    イマイチ釈然としないけど、型ガードでちゃんとデータをチェックしてから返却しよう　というお話。
+
+    #+caption: CatApiResponseの型ガード例
+    #+BEGIN_SRC typescript
+const isCatApiResnpose = (arg: any): arg is CatApiResponse => {
+  return (arg.name !== undefined
+    && arg.age !== undefined
+    && arg.parents !== undefined
+    && Array.isArray(arg.parents))
+}
+    #+END_SRC
+
+    こんな感じの型ガードを書いてあげて、 ~fetchAllCat()~ で受け取ったPromiseをresolveしたときに、きちんとデータがCapApiResponseのinterfaceに準拠していることを確認してあげる必要がある。
+
+    #+caption: きちんと型チェックを行う例
+    #+BEGIN_SRC typescript
+const hoge = () => {
+  const data = fetchAllCat();
+  data.then((data) => {
+    if (isCatApiResnpose(data.data)) {
+      data.data.parents.map((parent) => {
+        console.log(parent);
+        return "hoge";
+      });
+    }
+  });
+};
+    #+END_SRC
+
+    こうすることで、はちゃめちゃなデータが返ってきても安全に処理ができる（これでいいのか...?）。
+
+    実際はReactでデータをstateにsetしたりすることもあるが、その際はnullとか想定外のデータ構造だった場合は空のCatApiResponseを準備して返して上げれば単なる「データ無し」として扱える。
+
+    で、ここで面倒なのが、「空のhoge interfaceのデータ」を作ることで、構造が複雑だと一々手動でemptyHogeDataみたいなものを作らないといけない。ただ、その場合は該当するinterfaceを実装したclassを作っちゃって、そのconstructorで空を作らせるのも手かな　と。
+
+
+    ということで、今回はtypescriptのお話でございました。
+    
+** TODO TauriでWebの技術でネイティブアプリを作る                      :tauri:
+   :PROPERTIES:
+   :EXPORT_FILE_NAME: building-native-app-with-tauri
+   :EXPORT_HUGO_SECTION: /posts/2020/07
+   :EXPORT_DATE: 2020-07-10
+   :EXPORT_HUGO_CUSTOM_FRONT_MATTER: :toc true
+   :END:
+** DONE EmacsのLSP-modeの動作を軽くする           :Emacs:lspmode:performance:
+   :PROPERTIES:
+   :EXPORT_FILE_NAME: emacs-lsp-mode-more-faster
+   :EXPORT_HUGO_SECTION: /posts/2020/07
+   :EXPORT_DATE: 2020-07-11
+   :EXPORT_HUGO_CUSTOM_FRONT_MATTER: :toc true
+   :END:
+   EmacsのLSP-modeは非常に快適で、言語サポートの追加も簡単にできるので重宝しているのですが、動作がカクついたりしてストレスになる場合がありました。[[https://emacs-lsp.github.io/lsp-mode/page/performance/][ドキュメント]]を確認したところ、パフォーマンスチューニングの方法があったのでまとめておきます。
+
+*** いざチューニング
+    今回対応するチューニングが正常に適用されているかどうかは、 =M-x lsp-diagnose= で確認できます。
+
+    #+caption: lsp-diagnoseの出力結果
+    #+BEGIN_SRC
+Checking for Native JSON support: OK
+Checking emacs version has `read-process-output-max': OK
+Using company-capf: OK
+Check emacs supports `read-process-output-max': ERROR
+Check `read-process-output-max' default has been changed from 4k: ERROR
+Byte compiled against Native JSON (recompile lsp-mode if failing when Native JSON available): ERROR
+`gc-cons-threshold' increased?: ERROR
+    #+END_SRC
+
+    以前company-capfだけ有効化していたので、 ~Using company-capf~ がOKになっていますが、company-lspを使用している場合はERRORになるかと思います。
+
+    また、私の環境はEmacs-plus@28でネイティブJSONパーサ（後述）入りでビルドしたものなので、 =Native JSON support= と =emacs version has `read-process-ourput-max`= がOKになっています。Emacs26とかだとERRORになるかもしれませんので、アップデートが必要です。
+
+    それでは実際に各チューニング内容を確認していきます。
+
+**** EmacsのネイティブJSONパーサを使う
+     Emacsはver.27以降は、ネイティブでJSONのパースをサポートするようになりました。
+
+     ただし、ver.27以降でも、コンパイル時に =--with-json= オプションが渡されていないとサポートされないみたいです。
+
+     自分が使用しているEmacsが対応しているかどうかは =M-: (functionp 'json-serialize)= で確認できます。
+
+     ちなみに、MacでEmacs-plusを使用する場合は、 =brew install emacs@28 --with-jansson= でインストールできます。
+
+     Elispのパーサよりも、ネイティブパーサの方が最大15倍程度まで高速化されるらしい(Benchmarks show that Emacs 27 is ~15 times faster than Emacs when using Elisp json parser implementation.)ので、この設定は絶対ON推奨です。
+
+**** gc-cons-threshold の調整
+     =gc-cons-threshold= は、ガベージコレクションを実行する閾値ですが、デフォルト設定だとLSP-server/client間のデータやり取りに対して少なすぎるため、増やしてあげる必要があります。
+
+     調製の仕方は下記の２通り紹介されていました。
+
+     - 100mbくらいの大きな値をドカッと割り当てる（doomとかspacemacsとかも同じような設定）
+     - 初期設定を２倍していき、２倍してもレスポンスに変化が見られない時点で増加をストップさせ、それを設定値とする
+
+     後者の設定方法についてはGNU EmacsのメンテナであるEli Zaretskii氏のおすすめなので、一旦はこれに従って設定しました。
+
+     現在の設定値を確認するためには =M-x eval-expression gc-cons-threshold= で確認できます。ちなみに私の環境だと800,000(80KB)でした。
+
+     毎回init.elを書き換えて増やしていくのはめんどうなので、 =M-x eval-expression (seta gc-cons-threshold 1600000)= のような感じで少しずつ増やして様子を見てみたところ、丁度6,400,000と12,800,000の辺りでサジェストの出方がスムーズになり、それ以上増やしてもそこまで変化が無かったので、12,800,000(12MB)あたりにしておきました。
+
+**** company-lsp ではなく company-capf を使用する
+     今はcompany-lspは非推奨になっているので、company-capfを使用する設定を行います。
+
+     ドキュメントだと =(setq lsp-prefer-capf t)= だけでいいとのことだったのですが、私の環境だとcompany-backendsにcompany-capfが入ってくれなかったので、 下記のように明示的に設定しています（use-packageでlsp-mode読み込んでるとこ）。
+
+     #+caption: 明示的にcompany-capfを使用する設定
+     #+begin_src elisp
+  :hook
+  (lsp-mode . lsp-ui-mode)
+  (lsp-managed-mode . (lambda () (setq-local company-backends '(company-capf))))
+     #+end_src
+
+     設定の確認は =M-x company-diag= でできます。
+
+**** (Windowsの場合)lsp-uiを無効化する
+     Windowsだとlsp-uiが悪さをして遅くなることがあるみたいです。私はMacなのでスルー。
+
+**** lsp-idle-delay の調整
+     タイピング中にどれくらいの頻度でLSP系の状態（ハイライトとか）を更新するかの値ですが、これはとりあえず初期値の0.5のままにしました。
+
+*** 最終確認
+    以上のチューニング完了後、再び =lsp-diagnose= を実行すると、下記のような出力になるかと思います。
+
+    #+caption: やったぜ
+    #+begin_src
+Checking for Native JSON support: OK
+Checking emacs version has `read-process-output-max': OK
+Using company-capf: OK
+Check emacs supports `read-process-output-max': OK
+Check `read-process-output-max' default has been changed from 4k: OK
+Byte compiled against Native JSON (recompile lsp-mode if failing when Native JSON available): OK
+`gc-cons-threshold' increased?: OK
+    #+end_src
+
