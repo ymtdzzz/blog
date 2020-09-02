@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentScriptType="application/ecmascript" contentStyleType="text/css" height="125px" preserveAspectRatio="none" style="width:163px;height:125px;" version="1.1" viewBox="0 0 163 125" width="163px" zoomAndPan="magnify"><defs/><g><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacingAndGlyphs" textLength="70" x="16" y="17.6016">project_root</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacingAndGlyphs" textLength="58" x="26" y="31.7344">Dockerfile</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacingAndGlyphs" textLength="130" x="26" y="45.8672">docker-compose.yaml</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacingAndGlyphs" textLength="45" x="26" y="60">function</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacingAndGlyphs" textLength="27" x="36" y="74.1328">hello</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacingAndGlyphs" textLength="54" x="46" y="88.2656">hello.php</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacingAndGlyphs" textLength="44" x="26" y="102.3984">runtime</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacingAndGlyphs" textLength="56" x="36" y="116.5313">bootstrap</text><rect fill="none" height="2" style="stroke: #888888; stroke-width: 1.0;" width="2" x="9" y="12.0664"/><line style="stroke: #888888; stroke-width: 1.0;" x1="10" x2="10" y1="15.0664" y2="27.1992"/><line style="stroke: #888888; stroke-width: 1.0;" x1="10" x2="18" y1="27.1992" y2="27.1992"/><line style="stroke: #888888; stroke-width: 1.0;" x1="10" x2="10" y1="15.0664" y2="41.332"/><line style="stroke: #888888; stroke-width: 1.0;" x1="10" x2="18" y1="41.332" y2="41.332"/><rect fill="none" height="2" style="stroke: #888888; stroke-width: 1.0;" width="2" x="19" y="54.4648"/><line style="stroke: #888888; stroke-width: 1.0;" x1="10" x2="10" y1="15.0664" y2="55.4648"/><line style="stroke: #888888; stroke-width: 1.0;" x1="10" x2="18" y1="55.4648" y2="55.4648"/><rect fill="none" height="2" style="stroke: #888888; stroke-width: 1.0;" width="2" x="29" y="68.5977"/><line style="stroke: #888888; stroke-width: 1.0;" x1="20" x2="20" y1="57.4648" y2="69.5977"/><line style="stroke: #888888; stroke-width: 1.0;" x1="20" x2="28" y1="69.5977" y2="69.5977"/><line style="stroke: #888888; stroke-width: 1.0;" x1="30" x2="30" y1="71.5977" y2="83.7305"/><line style="stroke: #888888; stroke-width: 1.0;" x1="30" x2="38" y1="83.7305" y2="83.7305"/><rect fill="none" height="2" style="stroke: #888888; stroke-width: 1.0;" width="2" x="19" y="96.8633"/><line style="stroke: #888888; stroke-width: 1.0;" x1="10" x2="10" y1="15.0664" y2="97.8633"/><line style="stroke: #888888; stroke-width: 1.0;" x1="10" x2="18" y1="97.8633" y2="97.8633"/><line style="stroke: #888888; stroke-width: 1.0;" x1="20" x2="20" y1="99.8633" y2="111.9961"/><line style="stroke: #888888; stroke-width: 1.0;" x1="20" x2="28" y1="111.9961" y2="111.9961"/><!--MD5=[e4564f227c5e36c2489b3ac88078f223]
+@startsalt
+
+skinparam shadowing false
+skinparam DefaultFontName Proxima Nova
+skinparam ArrowColor #00b2e2
+skinparam DefaultFontColor #454645
+
+skinparam ActivityBorderColor #2D74BA
+skinparam ActivityDiamondBorderColor #2D74BA
+skinparam ActorBorderColor #2D74BA
+skinparam AgentBorderColor #2D74BA
+skinparam ArtifactBorderColor #2D74BA
+skinparam CardBorderColor #2D74BA
+skinparam ClassBorderColor #2D74BA
+skinparam CloudBorderColor #2D74BA
+skinparam CollectionsBorderColor #2D74BA
+skinparam ComponentBorderColor #2D74BA
+skinparam ControlBorderColor #2D74BA
+skinparam BoundaryBorderColor #2D74BA
+skinparam DatabaseBorderColor #2D74BA
+skinparam EntityBorderColor #2D74BA
+skinparam FileBorderColor #2D74BA
+skinparam FolderBorderColor #2D74BA
+skinparam FrameBorderColor #2D74BA
+skinparam InterfaceBorderColor #2D74BA
+skinparam LegendBorderColor #2D74BA
+skinparam NodeBorderColor #2D74BA
+skinparam NoteBorderColor #2D74BA
+skinparam ObjectBorderColor #2D74BA
+skinparam PackageBorderColor #2D74BA
+skinparam PageBorderColor #2D74BA
+skinparam ParticipantBorderColor #2D74BA
+skinparam PartitionBorderColor #2D74BA
+skinparam QueueBorderColor #2D74BA
+skinparam RectangleBorderColor #2D74BA
+skinparam SequenceBoxBorderColor #2D74BA
+skinparam SequenceDividerBorderColor #2D74BA
+skinparam SequenceGroupBorderColor #2D74BA
+skinparam SequenceLifeLineBorderColor #2D74BA
+skinparam SequenceReferenceBorderColor #2D74BA
+skinparam StackBorderColor #2D74BA
+skinparam StateBorderColor #2D74BA
+skinparam StereotypeABorderColor #2D74BA
+skinparam StereotypeCBorderColor #2D74BA
+skinparam StereotypeEBorderColor #2D74BA
+skinparam StereotypeIBorderColor #2D74BA
+skinparam StereotypeNBorderColor #2D74BA
+skinparam StorageBorderColor #2D74BA
+skinparam SwimlaneBorderColor #2D74BA
+skinparam UsecaseBorderColor #2D74BA
+
+skinparam ActivityBackgroundColor #FFFFFF
+skinparam ActivityDiamondBackgroundColor #FFFFFF
+skinparam ActorBackgroundColor #FFFFFF
+skinparam AgentBackgroundColor #FFFFFF
+skinparam ArtifactBackgroundColor #FFFFFF
+skinparam BackgroundColor #FFFFFF
+skinparam BoundaryBackgroundColor #FFFFFF
+skinparam CardBackgroundColor #FFFFFF
+skinparam ClassBackgroundColor #FFFFFF
+skinparam ClassHeaderBackgroundColor #FFFFFF
+skinparam CloudBackgroundColor #FFFFFF
+skinparam CollectionsBackgroundColor #FFFFFF
+skinparam ComponentBackgroundColor #FFFFFF
+skinparam BoundaryBackgroundColor #FFFFFF
+skinparam ControlBackgroundColor #FFFFFF
+skinparam DatabaseBackgroundColor #FFFFFF
+skinparam EntityBackgroundColor #FFFFFF
+skinparam FileBackgroundColor #FFFFFF
+skinparam FolderBackgroundColor #FFFFFF
+skinparam FrameBackgroundColor #FFFFFF
+skinparam IconPackageBackgroundColor #FFFFFF
+skinparam IconPrivateBackgroundColor #FFFFFF
+skinparam IconProtectedBackgroundColor #FFFFFF
+skinparam IconPublicBackgroundColor #FFFFFF
+skinparam InterfaceBackgroundColor #FFFFFF
+skinparam LegendBackgroundColor #FFFFFF
+skinparam NodeBackgroundColor #FFFFFF
+skinparam NoteBackgroundColor #FFFFFF
+skinparam ObjectBackgroundColor #FFFFFF
+skinparam PackageBackgroundColor #FFFFFF
+skinparam ParticipantBackgroundColor #FFFFFF
+skinparam PartitionBackgroundColor #FFFFFF
+skinparam QueueBackgroundColor #FFFFFF
+skinparam RectangleBackgroundColor #FFFFFF
+skinparam SequenceBoxBackgroundColor #FFFFFF
+skinparam SequenceDividerBackgroundColor #FFFFFF
+skinparam SequenceGroupBackgroundColor #FFFFFF
+skinparam SequenceGroupBodyBackgroundColor #FFFFFF
+skinparam SequenceLifeLineBackgroundColor #FFFFFF
+skinparam SequenceReferenceBackgroundColor #FFFFFF
+skinparam SequenceReferenceHeaderBackgroundColor #FFFFFF
+skinparam StackBackgroundColor #FFFFFF
+skinparam StateBackgroundColor #FFFFFF
+skinparam StereotypeABackgroundColor #FFFFFF
+skinparam StereotypeCBackgroundColor #FFFFFF
+skinparam StereotypeEBackgroundColor #FFFFFF
+skinparam StereotypeIBackgroundColor #FFFFFF
+skinparam StereotypeNBackgroundColor #FFFFFF
+skinparam StorageBackgroundColor #FFFFFF
+skinparam TitleBackgroundColor #FFFFFF
+skinparam UsecaseBackgroundColor #FFFFFF
+
+skinparam ActivityStartColor #454645
+skinparam ActivityEndColor #454645
+skinparam StateStartColor #454645
+skinparam StateEndColor #454645
+{
+  {T
+   + project_root
+   ++ Dockerfile
+   ++ docker-compose.yaml
+   ++ function
+   +++ hello
+   ++++ hello.php
+   ++ runtime
+   +++ bootstrap
+  }
+}
+@endsalt
+
+PlantUML version 1.2020.15(Sun Jun 28 20:39:45 JST 2020)
+(GPL source distribution)
+Java Runtime: Java(TM) SE Runtime Environment
+JVM: Java HotSpot(TM) 64-Bit Server VM
+Default Encoding: US-ASCII
+Language: ja
+Country: JP
+--></g></svg>
