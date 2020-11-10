@@ -798,7 +798,7 @@ fn set_bit(bytes: &mut [u8], bit: usize) {
 *** まとめ
     Rustを書き始めたときはちんぷんかんぷんでしたが、最近はメモリの状態を意識しながら書くことに慣れてきました。こういうしょうもないエラーもたまにやってしまいますが、トラブルシューティングはかなりスムーズにできるようになってきた気がします。
 
-** TODO 旧ブログの記事をこちらに移行しました                          :Other:
+** DONE 旧ブログの記事をこちらに移行しました                          :Other:
    :PROPERTIES:
    :EXPORT_FILE_NAME: blog-migrated-from-wordpress-to-hugo
    :EXPORT_HUGO_SECTION: /posts/2020/11

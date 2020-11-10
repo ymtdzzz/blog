@@ -3,7 +3,7 @@ title = "旧ブログの記事をこちらに移行しました"
 author = ["zeroclock"]
 date = 2020-11-10
 tags = ["Other"]
-draft = true
+draft = false
 toc = true
 +++
 
