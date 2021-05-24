@@ -1814,4 +1814,443 @@ where
 
     最近こっちに時間割けて無いのであれですが、ちょこちょこ直しておこうと思います。
     
-    もし使ってくれた方いましたらissueとかでFBしてくださると助かります！
+    FBI！
+
+** DONE Serverless,ECS（Fargate）自動デプロイ環境の構築 :AWS:Terraform:Serverless:CICD:Lambda:Laravel:
+   :PROPERTIES:
+   :EXPORT_FILE_NAME: auto-deploy-with-terraform-serverless
+   :EXPORT_HUGO_SECTION: /posts/2021/05
+   :EXPORT_DATE: 2021-05-24
+   :EXPORT_HUGO_CUSTOM_FRONT_MATTER: :toc true
+   :END:
+   
+   デプロイを自動化するのがMustになりつつありますが、なかなか完璧な自動デプロイ環境を作るのは難しいなーと感じています。
+   
+   で、最近、所属会社の経営層へのプレゼンのネタとして、中途半端にデプロイ自動化しているプロジェクトを、全リソース自動デプロイ化したら面白いんじゃね？という点で色々検証してみましたので、それについての記事になります。
+
+<!--more-->
+
+*** 課題
+**** 現状
+     現状のデプロイ構成はこんな感じでした。
+
+#+begin_src python :exports none
+from diagrams import Diagram, Cluster, Edge
+from diagrams.aws.storage import S3
+from diagrams.aws.compute import EC2, LambdaFunction
+from diagrams.aws.general import User, Users, InternetGateway, InternetAlt1
+from diagrams.onprem.client import Client
+from diagrams.aws.network import ALB, VPC, PublicSubnet, PrivateSubnet, CF, NATGateway
+from diagrams.aws.storage import S3
+from diagrams.aws.database import RDSMysqlInstance
+from diagrams.aws.devtools import Codepipeline, Codecommit, Codedeploy, Codebuild
+from diagrams.aws.integration import SimpleNotificationServiceSnsEmailNotification
+from diagrams.generic.blank import Blank
+from diagrams.programming.flowchart import Document
+
+node_attr = {
+    "fontsize": "20",
+    "fontname": "Helvetica-Bold"
+}
+
+with Diagram('', node_attr=node_attr, filename='images/2021/05/24/before-structure'):
+  # End User
+  user = User('\nEnd User')
+
+  # Developers
+  developers = Users('\nDevelopers')
+  source = Document('\nSource Code')
+
+  internet = InternetAlt1('\nwww')
+
+  pipeline = Codepipeline('\nCodePipeline')
+  codecommit = Codecommit('\nCodeCommit')
+  codebuild = Codebuild('\nCodeBuild')
+  codedeploy = Codedeploy('\nCodeDeploy')
+
+  with Cluster('Development'):
+    dev = [
+      Blank('\nProductionと同じようなインフラ')
+    ]
+  
+  with Cluster('Staging'):
+    stg = [
+      Blank('\nProductionと同じようなインフラ')
+    ]
+
+  with Cluster('Production'):
+    sns = SimpleNotificationServiceSnsEmailNotification('\nSNS')
+
+    with Cluster('VPC'):
+      nat = NATGateway('\nNAT Gateway')
+      igw = InternetGateway('\nInternet Gateway')
+
+      with Cluster('Public Subnets'):
+        alb = ALB('\nALB')
+
+      with Cluster('Private Subnets'):
+        with Cluster('RDS Cluster'):
+          rds = RDSMysqlInstance('\nDB-master')
+          rds - [RDSMysqlInstance('\nDB-ro')]
+
+        private_subnets = [
+          EC2('\nWeb 1'),
+          EC2('\nWeb 2')
+        ]
+
+    with Cluster('Lambda Functions'):
+      fns = LambdaFunction('\nLambda 1')
+      fns - LambdaFunction('\nLambda 2..X')
+
+    with Cluster('URL Shortener'):
+      url_s3 = S3('\nShorten URL Info Bucket')
+      shortener = [
+        LambdaFunction('\n短縮化API\nリダイレクトAPI')
+      ]
+
+    s3 = S3('\nS3 Bucket')
+    cf = CF('\nClloudFront')
+
+    developers - source >> Edge(label="Push", fontsize="20", fontname="Helvetica-Bold") >> codecommit >> pipeline >> codebuild >> codedeploy >> private_subnets >> sns >> user
+    codedeploy >> s3
+    private_subnets >> rds
+    private_subnets >> nat >> internet
+    alb >> igw >> internet
+    user >> Edge() << alb >> private_subnets
+    user >> Edge() << cf >> s3
+    user >> Edge() << shortener >> url_s3
+    developers >> Edge() << dev << codedeploy
+    developers >> Edge() << stg << codedeploy
+#+end_src
+
+#+caption: 現状のデプロイ構成
+[[file:images/2021/05/24/before-structure.png]]
+
+     単純化するとこんな感じ。
+
+#+begin_src python :exports none
+from diagrams import Diagram, Cluster, Edge
+from diagrams.aws.compute import EC2, LambdaFunction
+from diagrams.aws.general import Users
+from diagrams.aws.network import ALB
+from diagrams.aws.database import RDSMysqlInstance
+from diagrams.aws.devtools import Codepipeline, Codecommit, Codedeploy, Codebuild
+from diagrams.programming.flowchart import Document
+from diagrams.aws.devtools import Codepipeline
+
+node_attr = {
+    "fontsize": "20",
+    "fontname": "Helvetica-Bold"
+}
+
+with Diagram('', filename='images/2021/05/24/before-simple-structure', node_attr=node_attr):
+  consumers = Users(label='\n利用者')
+  developers = Users('\n開発者')
+  web = EC2('\nWebサーバ')
+  lb = ALB('\nロードバランサ')
+  db = RDSMysqlInstance('\nデータベース')
+  sls = LambdaFunction('\nLambda関数\n（API）')
+  pipe = Codepipeline('\n自動デプロイ\nツール')
+
+  app_src = Document('\nアプリソース')
+  conf = Document('\nミドル設定ファイル')
+
+  sls_src = Document('\nLambdaソース')
+
+  consumers >> Edge() << lb >> web >> db
+  web >> Edge() << sls
+  web - Edge(style="dashed") - conf
+  sls - Edge(style="dashed") - sls_src
+  developers - Edge(style="bold") - app_src >> pipe >> Edge(label="自動デプロイ", style="bold", fontsize='20', fontname="Helvetica-Bold") >> web
+#+end_src
+
+#+caption: 現状のデプロイ構成（簡易版）
+[[file:images/2021/05/24/before-simple-structure.png]]
+
+     まとめると下記のような感じです。
+
+     - アプリケーション（このプロジェクトではLaravelでした）のソースはデプロイ自動化できている
+     - ミドルウェアの設定ファイルは手動デプロイ
+     - サーバレス（Lambda）のソースは手動デプロイ
+     - インフラの設定情報も当然手動でしか変更不可
+
+**** 現状の運用の辛い点
+
+     - デプロイするリソースによって手順が変わる（レビュア、デプロイ担当者の負担増）
+     - 手動デプロイソースはGit管理できていない
+     - インフラ設定が知らないうちに変わるリスク（現状の運用では発生していない）
+     - オペミスリスク
+
+     と、やっぱりある程度システムが複雑になってくると結構辛い点が出てきます。
+
+*** 作ってみた
+    ということで、上記のツールを使って実際に全部自動化したものがこちら。
+
+    [[https://github.com/zeroclock/terraform-practice-01][github zeroclock/terraform-practice-01]]
+
+    それぞれ、 ~infra~ がTerraformの定義ファイルで、 ~app~ 配下がWebアプリ（Laravel）のソースと、サーバレス（Lambda）のソースになっています。
+
+**** 使うツール
+    ソースとかインフラ系の設定ファイルを全てコード化するとどんなもんになるんだろうと思い、下記のツールを使って同じような環境を作ってみました。
+
+    - [[https://www.terraform.io/][Terraform]]：パブリッククラウドのインフラ構成をコード化して自動構築してくれるツール
+    - [[https://www.serverless.com/][Serverless framework]]：サーバレス系（Lambda,S3など）のインフラ構築とアプリソースのデプロイを自動化してくれるツール
+
+    似たようなツールを使ってますが、棲み分けとしては下記のような感じです。
+
+    - 複数のリソースから参照されるリソース：Terraform
+    - 特定のリソースからのみ参照されるリソース：Serverless
+
+#+caption: 両ツールの棲み分けについてのソース（https://www.serverless.com/blog/definitive-guide-terraform-serverless）
+#+begin_quote
+For application-specific infrastructure, we suggest managing all the pieces with the Serverless Framework, for a few reasons.
+
+...
+
+However, coupling shared infrastructure to a specific application isn’t correct. Shared infrastructure will usually get updated instead of re-created from scratch.
+#+end_quote
+
+    例えばWebサーバとLambda、それぞれに参照されるDBがあるとすると、WebサーバとDBは ~Terraform~ で定義し、Lambda関数とそれに関連するAPI Gatewayや実行ロール等は ~Serverlss~ で定義するような感じです。
+
+**** 構成
+
+    インフラ＆デプロイ構成は下記の通り。
+
+#+begin_src python :exports none
+from diagrams import Diagram, Cluster, Edge
+from diagrams.aws.storage import S3
+from diagrams.aws.compute import LambdaFunction, ElasticContainerServiceContainer, ECR, ECS
+from diagrams.aws.general import User, Users, InternetGateway, InternetAlt1
+from diagrams.onprem.client import Client
+from diagrams.aws.network import ALB, VPC, PublicSubnet, PrivateSubnet, CF, Privatelink
+from diagrams.aws.storage import S3
+from diagrams.aws.database import RDSMysqlInstance
+from diagrams.aws.devtools import Codepipeline, Codecommit, Codedeploy, Codebuild
+from diagrams.generic.blank import Blank
+from diagrams.programming.flowchart import Document
+from diagrams.aws.integration import SQS
+from diagrams.onprem.vcs import Github
+from diagrams.onprem.ci import TravisCI
+from diagrams.custom import Custom
+
+node_attr = {
+    "fontsize": "20",
+    "fontname": "Helvetica-Bold"
+}
+
+with Diagram('', filename='images/2021/05/24/after-structure', node_attr=node_attr):
+  # Custom Icons
+  terraform = Custom("\nTerraform", "../../../terraform-logo.png")
+  sls = Custom("\nServerless", "../../../sls-logo.png")
+
+  # End User
+  user = User('\nEnd User')
+
+  # Developers
+  developers = Users('\nDevelopers')
+  source = Document('Source Code(Laravel)\nSource Code(Lambda)\nInfra configuration')
+
+  internet = InternetAlt1('\nwww')
+
+  github = Github('\nGithub')
+  travis = TravisCI('\nTravisCI')
+
+  travis - [terraform, sls]
+
+  ecr = ECR('\nECR')
+  sqs = SQS('\nSQS')
+
+  with Cluster('\nDevelopment'):
+    dev = Blank('\nProductionと\n同じようなインフラ')
+  
+  with Cluster('Staging'):
+    stg = Blank('\nProductionと\n同じようなインフラ')
+
+  with Cluster('\nProduction'):
+    with Cluster('\nVPC'):
+      igw = InternetGateway('\nInternet Gateway')
+
+      with Cluster('\nPublic Subnets'):
+        alb = ALB('\nALB')
+
+      with Cluster('\nPrivate Subnets'):
+        with Cluster('\nRDS Cluster'):
+          rds = RDSMysqlInstance('\nDB')
+
+        with Cluster('\nECS Cluster'):
+          worker = ElasticContainerServiceContainer('\nQueue Worker')
+          ecs = ECS('\nECS')
+          # link = Privatelink('VPC Privatelink')
+          private_subnets = [
+            ElasticContainerServiceContainer('\nApache'),
+            ElasticContainerServiceContainer('\nLaravel'),
+            ElasticContainerServiceContainer('\nBatch'),
+            worker
+          ]
+          ecs - private_subnets
+
+
+    fns = LambdaFunction('\nLambda 1')
+
+    s3 = S3('\nS3 Bucket')
+    cf = CF('\nClloudFront')
+
+    sls >> fns
+    developers - source >> Edge(label="Push", fontsize="20", fontname="Helvetica-Bold") >> github >> travis
+    fns >> sqs >> worker
+    ecr >> ecs
+    private_subnets >> rds
+    alb >> igw >> internet
+    user >> Edge() << alb >> private_subnets
+    user >> Edge() << cf >> s3
+    # developers >> Edge() << dev
+    # developers >> Edge() << stg
+    terraform >> [
+      ecr,
+      sqs,
+      rds,
+      igw,
+      cf,
+      alb,
+      ecs,
+      dev,
+      stg
+    ]
+#+end_src
+
+#+caption: 改善後のインフラ構成
+[[file:images/2021/05/24/after-structure.png]]
+
+#+begin_src python :exports none
+from diagrams import Diagram, Cluster, Edge
+from diagrams.aws.compute import EC2, LambdaFunction, ECS
+from diagrams.aws.general import Users
+from diagrams.aws.network import ALB
+from diagrams.aws.database import RDSMysqlInstance
+from diagrams.aws.devtools import Codepipeline, Codecommit, Codedeploy, Codebuild
+from diagrams.programming.flowchart import Document
+from diagrams.onprem.ci import TravisCI
+from diagrams.custom import Custom
+
+node_attr = {
+    "fontsize": "20",
+    "fontname": "Helvetica-Bold"
+}
+
+with Diagram('', filename='images/2021/05/24/after-simple-structure', node_attr=node_attr):
+  consumers = Users('\n利用者')
+  developers = Users('\n開発者')
+  web = ECS('\nWebサーバ')
+  lb = ALB('\nロードバランサ')
+  db = RDSMysqlInstance('\nデータベース')
+  sls = LambdaFunction('\nLambda関数\n（API）')
+  travis = TravisCI('\n自動デプロイ\nツール')
+  terraform = Custom('\nIaCツール', '../../../terraform-logo.png')
+
+  app_src = Document('\nアプリソース\nミドル設定ファイル\nLambdaソース\nインフラ構成ファイル')
+    # conf = Document('ミドル設定ファイル')
+    # sls_src = Document('Lambdaソース')
+
+  consumers >> Edge() << lb >> web >> db
+  web >> Edge() << sls
+  developers - Edge(style="bold", fontsize="20", fontname="Helvetica-Bold") - app_src - travis
+  travis - terraform >> Edge(label='自動デプロイ', style="bold", fontsize="20", fontname="Helvetica-Bold") >> [web, sls]
+#+end_src
+
+#+caption: 改善後のインフラ構成（簡易版）
+[[file:images/2021/05/24/after-simple-structure.png]]
+
+    SQSとLambdaが連携してたり、Laravelでバッチ用のコンテナがあったりで色々それっぽく作りました。Laravelについては、パブリックリポジトリにしている関係でenv系を暗号化するライブラリを入れていたりしてますが構成はほぼプレーンな状態です。
+
+**** 苦労したところ
+
+     インフラ定義についてはそれぞれのファイルを見ていただくとして、大変だったのがTravisCIを使ったECSへのデプロイ周り（Terraform/sls関係ないじゃんというツッコミは置いといて...）。
+
+     ~container definition~ とか ~task definition~ についてはデプロイ時ダイナミックに値を入れたりしないといけないので、 ~infra/code_deploy~ 配下のシェルスクリプトで若干力技で修正してapplyしています。
+
+#+caption: 新しいtask_definitionを発行するシェルスクリプト（infra/code_deploy/get_new_taskdef.sh）
+#+begin_src sh
+#!/bin/bash
+
+# set -eux
+
+TAG=$1
+APP_NAME=$2
+REGION=$3
+
+# get current taskdef
+# ref: https://github.com/aws/aws-cli/issues/3064#issuecomment-784614089
+TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${APP_NAME} --region ${REGION} \
+      --query '{  containerDefinitions: taskDefinition.containerDefinitions,
+                  family: taskDefinition.family,
+                  taskRoleArn: taskDefinition.taskRoleArn,
+                  executionRoleArn: taskDefinition.executionRoleArn,
+                  networkMode: taskDefinition.networkMode,
+                  volumes: taskDefinition.volumes,
+                  placementConstraints: taskDefinition.placementConstraints,
+                  requiresCompatibilities: taskDefinition.requiresCompatibilities,
+                  cpu: taskDefinition.cpu,
+                  memory: taskDefinition.memory}')
+ORIGINAL_TEXT=$(echo $TASK_DEFINITION | jq '.containerDefinitions[] | .image' -r | uniq)
+REPLACED_TEXT=$(echo ${ORIGINAL_TEXT} | sed -z "s/:\S*/:$TAG/g")
+ORIGINAL_ARR=($(echo $ORIGINAL_TEXT))
+REPLACED_ARR=($(echo $REPLACED_TEXT))
+
+for i in $(seq 1 ${#ORIGINAL_ARR[@]})
+do
+  # escape
+  ORIGIN=$(echo ${ORIGINAL_ARR[i-1]} | sed 's/\./\\\./g' | sed 's/\//\\\//g')
+  REPLACED=$(echo ${REPLACED_ARR[i-1]} | sed 's/\./\\\./g' | sed 's/\//\\\//g')
+  TASK_DEFINITION=$(echo $TASK_DEFINITION | sed -z s/$ORIGIN/$REPLACED/g)
+done
+
+echo $TASK_DEFINITION >&1
+#+end_src
+
+     ここがクリアできさえすれば、あとはポチポチブラウザでインフラ構築するような感覚で定義ファイル修正＆ ~terraform apply~ すれば良いので、わりと楽でした。
+
+*** 考察
+**** 良さそうな点
+
+     こうしてインフラ構成やミドル構成などまるっとデプロイ自動化することで、先程挙げた点が解消できそうだなと。
+
+     - デプロイするリソースによって手順が変わる（レビュア、デプロイ担当者の負担増）
+
+       →全てGit管理されているので、同じ手順（コードレビュー、デプロイ実行）でデプロイできる
+
+     - 手動デプロイソースはGit管理できていない
+
+       →Git管理できている
+
+     - インフラ設定が知らないうちに変わるリスク（現状の運用では発生していない）
+
+       →変更契機がGitへのPush時のみに限定されるので、変更が追いやすい
+
+     - オペミスリスク
+
+       →自動デプロイなのでリスク軽減
+
+     他にも、きちんと作ればインフラのマイグレが簡単にできたり、色々良いことずくめな気がしています。
+
+**** 微妙なところ（リスク）
+
+     ただし、リスクもあるかと思います。
+
+     - 学習コスト
+
+       →自分はもともとserverless使ってたので1,2md程度でチュートリアルやるだけで一応動くものは作れましたが、馴染みがない人だと若干苦労しそう。
+
+     - 保守できる人が限定される可能性
+
+       →学習コストにも関連しますが、Terraformやslsに詳しい人が社内で増えないとメンテナンスできる人が限定されてしまうリスクもありそう（これはモダン言語で作ったりすると起こるような問題に近い）。
+
+     - デプロイ設計きちんとできるプロジェクトじゃないと難しい
+
+       →普段からCodePipelineとかのサービス使って、それなりにデプロイフローを構築・運用できるチームじゃないと難しい面はあります。
+
+*** さいごに
+    最近は ~Code as Infrastructure~ 的な感じで色々なリソースをコード化しようっていう動きが活発化しているので、普段やってる案件でも取り込めたら良いですね。
+
+    実際、インフラ担当になった案件ではLambdaを一部Serverlessによるデプロイに切り替えたりしていますが、わりといい感じな気がしています。
+
+    ただ、デプロイ自動化までできて50点だと思っており、そこからさらにテスト自動化までできてやっと及第点な感じがするので、まだまだ先は長い...
