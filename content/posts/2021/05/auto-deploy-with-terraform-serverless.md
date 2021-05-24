@@ -47,7 +47,7 @@ toc = true
 
 ## 作ってみた {#作ってみた}
 
-ということで、上記のツールを使って実際に全部自動化したものがこちら。
+ということで、後述のツールを使って実際に全部自動化したものがこちら。
 
 [github zeroclock/terraform-practice-01](https://github.com/zeroclock/terraform-practice-01)
 

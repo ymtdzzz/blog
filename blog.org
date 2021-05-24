@@ -1984,7 +1984,7 @@ with Diagram('', filename='images/2021/05/24/before-simple-structure', node_attr
      と、やっぱりある程度システムが複雑になってくると結構辛い点が出てきます。
 
 *** 作ってみた
-    ということで、上記のツールを使って実際に全部自動化したものがこちら。
+    ということで、後述のツールを使って実際に全部自動化したものがこちら。
 
     [[https://github.com/zeroclock/terraform-practice-01][github zeroclock/terraform-practice-01]]
 
