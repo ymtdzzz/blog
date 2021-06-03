@@ -2254,3 +2254,343 @@ echo $TASK_DEFINITION >&1
     実際、インフラ担当になった案件ではLambdaを一部Serverlessによるデプロイに切り替えたりしていますが、わりといい感じな気がしています。
 
     ただ、デプロイ自動化までできて50点だと思っており、そこからさらにテスト自動化までできてやっと及第点な感じがするので、まだまだ先は長い...
+** TODO 【OSS貢献記録】Fuchsia/net stack3 issue 48969
+   :PROPERTIES:
+   :EXPORT_FILE_NAME: oss-contribute-fuchsia-issue-48969
+   :EXPORT_HUGO_SECTION: /posts/2021/05
+   :EXPORT_DATE: 2021-05-24
+   :EXPORT_HUGO_CUSTOM_FRONT_MATTER: :toc true
+   :END:
+
+   https://bugs.fuchsia.dev/p/fuchsia/issues/detail?id=48969
+
+   該当箇所はここっぽい。
+
+   https://cs.opensource.google/fuchsia/fuchsia/+/main:src/connectivity/network/netstack3/src/bindings/socket/mod.rs;l=145-156
+
+   ソースを見た感じ、posixのsocket関連のリクエストを捌く処理。
+
+   今は下記の通り、スタブアウトされており、未対応という形になっている。
+
+#+begin_src rus
+// TODO(https://fxbug.dev/48969): implement this method.
+responder_send!(responder, &mut Err(zx::Status::NOT_FOUND.into_raw()));
+#+end_src
+
+   で、この ~handle_fidl_socket_provider()~ 自体はWorkerのイベントループで使用される。
+
+   さて、ということで、こやつらは一体どんなI/Oを持つべきなのかということで、FIDLの定義ファイルを探す。
+   （FIDLというのはFuchsiaにおけるプロセス間通信に用いられるインタフェース定義言語。中間言語のような位置づけなので、実装言語が異なっていても互いにデータ通信することができる）
+
+   ソースがでかすぎるのでPJ直下でgrep
+
+#+begin_src
+$ rg -F "InterfaceIndexToName"
+sdk/fidl/fuchsia.posix.socket/socket.fidl
+579:    InterfaceIndexToName(uint64 index) -> (interface_name name) error zx.status;
+
+sdk/lib/fdio/socket.cc
+1280:      auto response = provider->InterfaceIndexToName(static_cast<uint64_t>(ifr->ifr_ifindex));
+
+src/connectivity/network/netstack3/src/bindings/socket/mod.rs
+146:            psocket::ProviderRequest::InterfaceIndexToName { index: _, responder } => {
+
+src/connectivity/network/netstack/fuchsia_posix_socket.go
+2468:func (sp *providerImpl) InterfaceIndexToName(_ fidl.Context, index uint64) (socket.ProviderInterfaceIndexToNameResult, error) {
+2470:           return socket.ProviderInterfaceIndexToNameResultWithResponse(socket.ProviderInterfaceIndexToNameResponse{
+2474:   return socket.ProviderInterfaceIndexToNameResultWithErr(int32(zx.ErrNotFound)), nil
+
+#+end_src
+
+   お、netstack（Go言語の方）の実装も見つかったので後で参考にしよう。
+
+   該当するFIDLの定義箇所はこちら。
+
+   https://cs.opensource.google/fuchsia/fuchsia/+/main:sdk/fidl/fuchsia.posix.socket/socket.fidl;l=577-585
+
+#+begin_src
+    /// Looks up an interface by its index and returns its name. Returns `ZX_ERR_NOT_FOUND` if the
+    /// specified index doesn't exist.
+    InterfaceIndexToName(uint64 index) -> (interface_name name) error zx.status;
+    /// Looks up an interface by its name and returns its index. Returns `ZX_ERR_NOT_FOUND` if the
+    /// specified name doesn't exist.
+    InterfaceNameToIndex(interface_name name) -> (uint64 index) error zx.status;
+    /// Looks up an interface by its name and returns its flags. Returns `ZX_ERR_NOT_FOUND` if the
+    /// specified name doesn't exist.
+    InterfaceNameToFlags(interface_name name) -> (InterfaceFlags flags) error zx.status;
+#+end_src
+
+   ~interface_name~ は、同ファイルに定義されてますが、最大15byteの文字列のようです。
+
+#+begin_src 
+/// The maximum length of an interface name.
+// `sizeof((struct ifreq).ifr_name) == 16`; the last byte is reserved for the null terminator.
+const uint8 INTERFACE_NAME_LENGTH = 15;
+
+/// An interface name as a sequence of bytes.
+alias interface_name = string:INTERFACE_NAME_LENGTH;
+#+end_src
+
+    次に、GOの実装を見てみる。
+
+    https://cs.opensource.google/fuchsia/fuchsia/+/main:src/connectivity/network/netstack/fuchsia_posix_socket.go;l=2468-2486
+
+#+begin_src go
+func (sp *providerImpl) InterfaceIndexToName(_ fidl.Context, index uint64) (socket.ProviderInterfaceIndexToNameResult, error) {
+	if info, ok := sp.ns.stack.NICInfo()[tcpip.NICID(index)]; ok {
+		return socket.ProviderInterfaceIndexToNameResultWithResponse(socket.ProviderInterfaceIndexToNameResponse{
+			Name: info.Name,
+		}), nil
+	}
+	return socket.ProviderInterfaceIndexToNameResultWithErr(int32(zx.ErrNotFound)), nil
+}
+#+end_src
+
+    ~providerImpl~ 構造体が ~Netstack~ 、 ~Stack~ と辿って ~NICInfo()~ でNIC情報取得し、該当するindexの情報があればそれを返却するような流れ。
+
+    Netstack: https://cs.opensource.google/fuchsia/fuchsia/+/main:src/connectivity/network/netstack/netstack.go;l=180
+
+    Stack: https://cs.opensource.google/fuchsia/fuchsia/+/main:third_party/golibs/vendor/gvisor.dev/gvisor/pkg/tcpip/stack/stack.go;l=70
+
+    Go製のNetstackはgvisorに依存した実装になっているけど、Netstack3は（Stack関連については）特にthirdparyに依存しているわけでも無さそうなので、FIDLを確認する。
+
+    なんとなく ~interface_id~ とか ~interface_name~ とかでgrepかけたらそれっぽいところを発見。
+
+    https://cs.opensource.google/fuchsia/fuchsia/+/main:sdk/fidl/fuchsia.net.stack/stack.fidl;l=35-78
+
+    それっぽいのは ~InterfaceProperties~ なので、再びgrep。
+
+    https://cs.opensource.google/fuchsia/fuchsia/+/main:src/connectivity/network/netstack3/src/bindings/stack_fidl_worker.rs
+
+#+begin_src rust
+    fn fidl_list_interfaces(self) -> Vec<fidl_net_stack::InterfaceInfo> {
+        let mut devices = Vec::new();
+        for device in self.ctx.dispatcher().get_inner::<Devices>().iter_devices() {
+            let mut addresses = Vec::new();
+            if let Some(core_id) = device.core_id() {
+                for addr in get_all_ip_addr_subnets(&self.ctx, core_id) {
+                    match addr.try_into_fidl() {
+                        Ok(addr) => addresses.push(addr),
+                        Err(e) => {
+                            error!("failed to map interface address/subnet into FIDL: {:?}", e)
+                        }
+                    }
+                }
+            };
+            devices.push(InterfaceInfo {
+                id: device.id(),
+                properties: InterfaceProperties {
+                    name: "[TBD]".to_owned(), // TODO(porce): Follow up to populate the name
+                    topopath: device.path().clone(),
+                    filepath: "[TBD]".to_owned(), // TODO(porce): Follow up to populate
+                    mac: Some(Box::new(device.mac())),
+                    mtu: device.mtu(),
+                    features: device.features(),
+                    administrative_status: if device.admin_enabled() {
+                        AdministrativeStatus::Enabled
+                    } else {
+                        AdministrativeStatus::Disabled
+                    },
+                    physical_status: if device.phy_up() {
+                        PhysicalStatus::Up
+                    } else {
+                        PhysicalStatus::Down
+                    },
+                    addresses, // TODO(gongt) Handle tentative IPv6 addresses
+                },
+            });
+        }
+        devices
+    }
+#+end_src
+
+    で、ここで（今更）Netstack3のサービス構成を今更確認すると、下記のように、3つのサービスを作成していることがわかる。
+
+    https://cs.opensource.google/fuchsia/fuchsia/+/main:src/connectivity/network/netstack3/src/bindings/mod.rs;l=474-494
+
+#+begin_src rust
+    /// Consumes the netstack and starts serving all the FIDL services it
+    /// implements to the outgoing service directory.
+    pub async fn serve(self) -> Result<(), anyhow::Error> {
+        debug!("Serving netstack");
+        self.spawn_timers().await;
+        let mut fs = ServiceFs::new_local();
+        fs.dir("svc")
+            .add_fidl_service(|rs: fidl_fuchsia_net_icmp::ProviderRequestStream| {
+                icmp::IcmpProviderWorker::spawn(self.clone(), rs)
+            })
+            .add_fidl_service(|rs: fidl_fuchsia_net_stack::StackRequestStream| {
+                stack_fidl_worker::StackFidlWorker::spawn(self.clone(), rs)
+            })
+            .add_fidl_service(|rs: fidl_fuchsia_posix_socket::ProviderRequestStream| {
+                socket::SocketProviderWorker::spawn(self.clone(), rs)
+            });
+        fs.take_and_serve_directory_handle()?;
+        fs.collect::<()>().await;
+        debug!("Services stream finished");
+        Ok(())
+    }
+#+end_src
+
+    1. fidl/fuchsia.net.icmp
+    2. fidl/fuchsia.net.stack
+    3. fidl/fuchsia.posix.socket
+
+    各サービスにおいては、 ~ctx: Arc<Mutex<Context<BindingsDispatcher>>>~ が共有されてますので、先述のInterfacePropertiesを ~ctx~ から取得する処理を使えそうです。
+
+    ただし、現状は ~stack_fidl_worker~ で定義されちゃってますので、共通化する必要がありそうです。
+** DONE インターン生の研修環境をTerraformとcloud9でサクッと作った話
+   :PROPERTIES:
+   :EXPORT_FILE_NAME: intern-cloud9-env-with-terraform
+   :EXPORT_HUGO_SECTION: /posts/2021/06
+   :EXPORT_DATE: 2021-06-03
+   :EXPORT_HUGO_CUSTOM_FRONT_MATTER: :toc true
+   :END:
+
+   所属会社にて、内定者向けのインターン（っていうのか？）を開催することになり、急遽環境構築をすることになりました。
+
+   内容も結構本格的で、ほぼ実案件のソースを使ってバグ改修とか機能追加とかさせたいね　ということでした。まあソースとかは一応持ち帰りで作ってる案件のソースもあるし、バグについても過去のバグチケットを漁れば良いな　と。
+
+   あとはただ一つ、インターン担当者の思いは...
+
+<!--more-->
+
+   *出社したくねえ...＼(^o^)／*
+
+   ということで、準備ももちろん、実施もオンラインでも対応できるような形を目指して環境構築がスタートしましたとさ。
+
+
+*** 作った環境
+**** 要件
+     - ブラウザ経由でソースコードの編集、及び動作確認ができること
+     - *セキュアであること*
+     - 環境構築が簡単なこと
+
+**** ソースコード
+
+     Terraformで作ってGithubに置いておきました。
+
+     [[https://github.com/zeroclock/cloud9-training-env-terraform][Github/zeroclock - cloud9-training-env-terraform]]
+
+**** 構成図
+
+     ざっくりとこんな感じの環境を作りました。
+
+#+begin_src plantuml :file overview.svg :cmdline -config "$HOME/.emacs.d/styles.uml" :async
+!include <awslib/AWSCommon>
+!include <awslib/AWSSimplified>
+
+!include <awslib/General/User>
+!include <awslib/Compute/EC2>
+!include <awslib/DeveloperTools/Cloud9>
+!include <awslib/NetworkingAndContentDelivery/VPCNATGateway>
+!include <awslib/ManagementAndGovernance/SystemsManager>
+
+left to right direction
+
+SystemsManager(smgr, "SystemsManager", "")
+User(intern_mem, "internship participant", "")
+User(support_mem, "supporting member", "")
+
+cloud "www" as www {
+  [Git]
+  [Library]
+}
+
+cloud "VPC" as vpc {
+  node "Public Subnet" as pub_sub {
+    VPCNATGateway(nat, "NAT GW", "")
+  }
+  node "Private Subnet" as pri_sub {
+    Cloud9(ide, "Cloud9[EC2]", "")
+  }
+}
+
+intern_mem -up-> smgr
+smgr -> ide
+support_mem -up-> smgr
+www <--> nat
+nat <-- ide
+#+end_src
+
+#+caption: インフラ構成概要図
+#+RESULTS[507f30e08fd746160519a2e6bcab99c4c9da40ff]:
+[[file:overview.svg]]
+
+**** 構成について
+     
+     クラウド上でIDEを使うとなると、個人的にはCloud9一択でした。とはいえ、数年前に勉強のためにちょろっと触ったくらいだったので、何ができるかについては若干手探りで。
+
+     最近Cloud9がSystemsManager経由で利用可能になった（≒プライベートサブネットで利用可能になった）という話を聞いており、パブリックにインスタンスを置かなくても良さそうだったという部分も後押しになった形。
+
+     > 注意ですが、[[https://dev.classmethod.jp/articles/cloud9-ide-network-condition/][この記事]]にあるように、AWS側としてはプライベートサブネットではなく「インバウンド通信を遮断した（no-ingressな）パブリックサブネット」での利用を意図しているようですね。ただ、今回は特にaws cliを使ったりしないためプライベートサブネット上に構築しました。
+
+     また、できるだけ簡単に環境構築ができるように、「作成するIAMユーザの数」と「作成する環境の数」を変数化して、動的に変更できるようにしました。
+
+     というのも、まだ具体的な参加人数が決まっていないため、実際の環境構築時にダイナミックに変更可能にしたかったためです。
+
+     ソースコードだとこの辺です。
+
+     https://github.com/zeroclock/cloud9-training-env-terraform/blob/master/user/main.tf
+
+#+caption: TerraformによるIAMユーザの動的な変更
+#+begin_src terraform
+resource "aws_iam_user" "this" {
+    count = var.user_count
+    name = "${var.name}-${count.index}"
+    path = "/"
+    force_destroy = true
+}
+#+end_src
+
+    また、今回はCloud9のインスタンス内でDockerコンテナを起動して、それをlocalhostで見に行く感じになりますので、クラウド上でローカル開発環境を作るようなイメージです。
+
+    （いくつかハマりポイントがありますので後述します）
+
+*** 構築フロー
+    今回はTerraformを使用したので、かなり簡単に環境の作成＆削除が行えます。
+
+    具体的な構築手順は下記の通り。
+
+#+begin_src plantuml :file overview2.svg :cmdline -config "$HOME/.emacs.d/styles.uml" :async
+start
+
+:IAMアカウント情報、ARNを取得;
+:GithubからソースをPull;
+:terraform init;
+:terraform plan;
+:terraform apply;
+:各環境にて環境整備;
+
+stop
+#+end_src
+
+#+caption: 環境構築手順
+#+RESULTS:
+[[file:overview2.svg]]
+
+    インフラの手動構築（AWSのコンソールでのポチポチ）は不要ですが、各環境内部で実施する作業はする+時間がありま+自動化しませんでした。
+
+    - Gitからの研修用ソースのPull：これはCodeCommitのみ対応なので、今回はどちらにしても無理だった
+    - dockerイメージのビルド：ECRにイメージPushでそれをPullでいいかも
+    - 依存パッケージのインストール
+    - env系の修正
+
+*** ハマりポイント
+**** プレビューが表示されない
+     プレビューでアクセスする際のポートは8080にしないと死にます（噂によると8081,8082とかも大丈夫らしいけど8080にしといた方が無難）
+
+**** セッションが死ぬ
+     デバッグログで見るとわかりますが、envとかの設定でcookie発行時のドメイン情報がlocalhostのままになってたりすると、3rd-party cookieで弾かれます。ログインできなくて若干ハマりました。
+
+**** localhostじゃないのでドメイン設定に気をつける
+     プレビューを表示すると、ドメインがhogehoge.vfs~みたいな構成になってますので、そのドメイン名をアプリ側にも設定しておきます（Cookieの件と似てますね）
+
+*** さいごに
+    そんな感じで作ってみた環境ですが、t2.smallとかのインスタンスでもわりと快適に動いてますので、意外と使い所多いかも？と思いました。
+
+    ただ、一点注意なんですが、プライベートサブネットなのでインターネット通信のためにNAT GWが必要です。
+
+    NAT GWは利用料金が跳ね上がる原因の上位にランクインするやばいやつなので、ご利用は計画的に・・・。
+    （多分一ヶ月起動しっぱとかだとインスタンス諸々含め2万くらいとられます...）
+
