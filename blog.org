@@ -2476,7 +2476,7 @@ func (sp *providerImpl) InterfaceIndexToName(_ fidl.Context, index uint64) (sock
 
      ざっくりとこんな感じの環境を作りました。
 
-#+begin_src plantuml :file overview.svg :cmdline -config "$HOME/.emacs.d/styles.uml" :async
+#+begin_src plantuml :file ./images/2021/06/06-03-overview.svg :cmdline -config "$HOME/.emacs.d/styles.uml" :async
 !include <awslib/AWSCommon>
 !include <awslib/AWSSimplified>
 
@@ -2515,7 +2515,7 @@ nat <-- ide
 
 #+caption: インフラ構成概要図
 #+RESULTS[507f30e08fd746160519a2e6bcab99c4c9da40ff]:
-[[file:overview.svg]]
+[[file:./images/2021/06/06-03-overview.svg]]
 
 **** 構成について
      
@@ -2552,7 +2552,7 @@ resource "aws_iam_user" "this" {
 
     具体的な構築手順は下記の通り。
 
-#+begin_src plantuml :file overview2.svg :cmdline -config "$HOME/.emacs.d/styles.uml" :async
+#+begin_src plantuml :file ./images/2021/06/06-03-overview2.svg :cmdline -config "$HOME/.emacs.d/styles.uml" :async
 start
 
 :IAMアカウント情報、ARNを取得;
@@ -2567,7 +2567,7 @@ stop
 
 #+caption: 環境構築手順
 #+RESULTS:
-[[file:overview2.svg]]
+[[file:./images/2021/06/06-03-overview2.svg]]
 
     インフラの手動構築（AWSのコンソールでのポチポチ）は不要ですが、各環境内部で実施する作業は、 +自動化する時間がありませんでした+ 自動化しませんでした。
 
@@ -2632,7 +2632,7 @@ stop
 *** 構成図
     今回は、サーバレス（Lambda）でチャットサーバーを構築することを検討してみました。
 
-#+begin_src plantuml :file overview.svg :cmdline -config "$HOME/.emacs.d/styles.uml" :async
+#+begin_src plantuml :file ./images/2021/06/06-06-overview.svg :cmdline -config "$HOME/.emacs.d/styles.uml" :async
 !include <awslib/AWSCommon>
 !include <awslib/AWSSimplified>
 
@@ -2690,7 +2690,7 @@ apigw <-- handlers
 
 #+caption: 概要図
 #+RESULTS:
-[[file:overview.svg]]
+[[file:./images/2021/06/06-06-overview.svg]]
 
     API GatewayがWebsocketのフロントエンドとして機能し、リクエストに応じて各バックエンド(handlers)にリクエストを流します。
 
@@ -2718,7 +2718,7 @@ apigw <-- handlers
 
     よって、例としてメッセージ配信後に相手が接続を切った場合の処理フローは下記のようになります。
 
-#+begin_src plantuml :file overview2.svg :cmdline -config "$HOME/.emacs.d/styles.uml" :async
+#+begin_src plantuml :file ./images/2021/06/06-06-overview2.svg :cmdline -config "$HOME/.emacs.d/styles.uml" :async
 actor Alice as alice
 participant Server as server
 actor Bob as bob
@@ -2734,7 +2734,7 @@ alice <- server: STATUS event
 
 #+caption: WebsocketによるP2P通信フロー
 #+RESULTS:
-[[file:overview2.svg]]
+[[file:./images/2021/06/06-06-overview2.svg]]
 
 *** 実装
 

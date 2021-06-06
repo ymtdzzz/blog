@@ -40,7 +40,7 @@ toc = true
 
 今回は、サーバレス（Lambda）でチャットサーバーを構築することを検討してみました。
 
-{{< figure src="/ox-hugo/overview.svg" caption="Figure 1: 概要図" >}}
+{{< figure src="/ox-hugo/06-06-overview.svg" caption="Figure 1: 概要図" >}}
 
 API GatewayがWebsocketのフロントエンドとして機能し、リクエストに応じて各バックエンド(handlers)にリクエストを流します。
 
@@ -66,7 +66,7 @@ Websocketはイベント駆動なので、 `GETMSG` のリクエストを送信�
 
 よって、例としてメッセージ配信後に相手が接続を切った場合の処理フローは下記のようになります。
 
-{{< figure src="/ox-hugo/overview2.svg" caption="Figure 2: WebsocketによるP2P通信フロー" >}}
+{{< figure src="/ox-hugo/06-06-overview2.svg" caption="Figure 2: WebsocketによるP2P通信フロー" >}}
 
 
 ## 実装 {#実装}
