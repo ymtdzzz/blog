@@ -2,6 +2,7 @@
 title = "インターン生の研修環境をTerraformとcloud9でサクッと作った話"
 author = ["zeroclock"]
 date = 2021-06-03
+tags = ["Terraform", "AWS", "cloud9"]
 draft = false
 toc = true
 +++
